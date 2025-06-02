@@ -173,12 +173,7 @@ def scoreboard_automation(url):
 
 
 
-# //div[text()="客队得分"]/preceding::span[@aria-label="plus"]
-# //div[text()="客队得分"]/preceding::span[@aria-label="minus"]
-# //div[text()="客队得分"]/following::span[@aria-label="plus"]
-# //div[text()="客队得分"]/following::span[@aria-label="minus"]
-# //div[text()="客队得分"]/preceding::input[@class="_scoreInput_1y8f2_35"]
-# //div[text()="客队得分"]/following::input[@class="_scoreInput_1y8f2_35"]
+
 if __name__ == '__main__':
     scoreboard_automation(
         "https://mix.blinktech.com.cn/scorer?region=CN&bizId=3E738D568B034266B4C9BB13A938D6CB&lang=zh_CN")
