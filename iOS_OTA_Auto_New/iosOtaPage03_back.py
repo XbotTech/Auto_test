@@ -335,6 +335,7 @@ def otaUpdate(driver: WebDriver):
                 time.sleep(2)
                 if version_number and device_name:
                     log_upgrade_version(version_number, device_name, False, '安装指令未发送')
+                    find_and_click_button_by_xpath(driver, '(//XCUIElementTypeButton[@name="确认"])[2]')
                 print('升级失败')
                 go_back(driver)
                 otaMeum(driver)
