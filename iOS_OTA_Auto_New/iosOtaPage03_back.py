@@ -124,7 +124,7 @@ def listen_for_failure_popup(driver: WebDriver,
         time.sleep(2)
 
 
-def parallel_find_and_click_stable(driver, timeout=30):
+def parallel_find_and_click_stable(driver, timeout=40):
     """
     稳定的并行查找版本，避免过时元素
     """
@@ -175,7 +175,7 @@ def parallel_find_and_click_stable(driver, timeout=30):
 
                             # Frame成功后找XbotGo
                             time.sleep(1)  # 等待页面刷新
-                            return find_xbotgo_after_frame(driver, start_time, timeout - elapsed)
+                            return find_xbotgo_after_frame(driver)
                         else:
                             print("❌ Frame点击失败")
                             return False
@@ -246,39 +246,76 @@ def click_firmware_with_refresh(driver, seconds=2):
     return False
 
 
-def find_xbotgo_after_frame(driver, overall_start_time, remaining_time):
-    """Frame后查找XbotGo"""
+def find_xbotgo_after_frame(driver):
+    """Frame后查找XbotGo并执行点击操作，最多30秒"""
     import time
     from selenium.webdriver.common.by import By
+    from selenium.common.exceptions import (
+        StaleElementReferenceException,
+        ElementClickInterceptedException,
+        NoSuchElementException
+    )
 
     xpath = '//*[starts-with(@name, "XbotGo-")]'
-    start_search_time = time.time()
+    max_wait_time = 30  # 最大等待30秒
+    poll_interval = 0.5  # 轮询间隔
+    max_attempts = int(max_wait_time / poll_interval)
+    start_time = time.time()
 
-    print(f"🔄 开始查找XbotGo，最多{remaining_time:.1f}秒")
+    print(f"🔄 开始查找XbotGo，最多等待{max_wait_time}秒")
 
-    while time.time() - overall_start_time < remaining_time:
+    for attempt in range(max_attempts):
+        current_elapsed = time.time() - start_time
+
+        # 每5秒打印一次进度
+        if attempt % 10 == 0 and attempt > 0:
+            print(f"⏳ 查找中... 已等待{current_elapsed:.1f}秒")
+
         try:
+            # 每次尝试都重新查找元素，避免stale reference
             elements = driver.find_elements(By.XPATH, xpath)
+
             if elements:
-                element = elements[0]  # 新引用
+                element = elements[0]
+
+                # 检查元素是否可交互
                 if element.is_displayed() and element.is_enabled():
-                    element.click()  # 立即点击
-                    print("✅ Frame后XbotGo点击成功")
+                    try:
+                        # 尝试点击
+                        element.click()
+                        elapsed_time = time.time() - start_time
+                        print(f"✅ 找到并点击XbotGo，用时{elapsed_time:.1f}秒")
 
-                    # 点击固件更新
-                    if click_firmware_with_refresh(driver, 2):
-                        print("🎉 完整流程成功")
-                        return True
-                    else:
-                        print("⚠️  固件更新失败")
-                        return True
+                        # 点击后等待一下，让页面响应
+                        time.sleep(1)
+
+                        # 尝试固件更新
+                        if click_firmware_with_refresh(driver, 2):
+                            print("🎉 完整流程成功")
+                            return True
+                        else:
+                            print("⚠️ 固件更新失败，但XbotGo已找到")
+                            return True  # 仍然返回True，因为找到了XbotGo
+
+                    except ElementClickInterceptedException:
+                        print("⚠️ 元素被遮挡，尝试滚动到视图")
+                        driver.execute_script("arguments[0].scrollIntoView(true);", element)
+                        time.sleep(0.5)
+                        continue
+
+        except StaleElementReferenceException:
+            # 元素已过时，正常现象，继续下一次查找
+            continue
         except Exception as e:
-            if "stale" not in str(e).lower():
-                print(f"查找XbotGo出错: {str(e)[:50]}")
+            error_msg = str(e)
+            if "stale" not in error_msg.lower():
+                print(f"⚠️ 查找出错: {error_msg[:80]}")
 
-        time.sleep(0.5)
+        # 轮询间隔
+        time.sleep(poll_interval)
 
-    print("❌ Frame后未找到XbotGo")
+    elapsed_total = time.time() - start_time
+    print(f"❌ 30秒内未找到XbotGo，总用时{elapsed_total:.1f}秒")
     return False
 # OTA 升级
 def otaUpdate(driver: WebDriver):
@@ -325,8 +362,9 @@ def otaUpdate(driver: WebDriver):
                 device_name = get_device_name(driver)
                 if version_number and device_name:
                     log_upgrade_version(version_number, device_name, True, '')
+                    # time.sleep(15)
                     find_and_click_button_by_xpath(driver, '(//XCUIElementTypeButton[@name="确认"])[2]')
-                time.sleep(30)
+                    time.sleep(40)
                 otaUpdate(driver)  # 假设升级后可能还需要继续升级
             elif instllState == state.Fail:
                 print("111111")
