@@ -12,6 +12,8 @@ from selenium.webdriver.common.actions.action_builder import ActionBuilder
 from selenium.webdriver.common.actions.pointer_input import PointerInput
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
+
 
 devices: List[WebDriver] = []
 exptTime = 6
@@ -317,6 +319,76 @@ def find_xbotgo_after_frame(driver):
     elapsed_total = time.time() - start_time
     print(f"❌ 30秒内未找到XbotGo，总用时{elapsed_total:.1f}秒")
     return False
+
+# 点击检测方法
+def wait_and_handle_click_detection(driver, max_retries=5):
+    """
+    等待并处理点击检测流程
+
+    流程：
+    1. 等待"点击检测"元素出现（最多10秒）
+    2. 点击该元素
+    3. 等待4秒
+    4. 检查"立即更新"或"回退到正式版"是否出现
+    5. 如果出现则pass，否则重复步骤1-4（最多重试max_retries次）
+
+    Args:
+        driver: Appium WebDriver实例
+        max_retries: 最大重试次数，默认5次
+
+    Returns:
+        bool: 成功找到更新按钮返回True，否则返回False
+    """
+    # 元素定位器
+    click_detection_xpath = '//XCUIElementTypeStaticText[@name="点击检测"]'
+    update_now_xpath = '//XCUIElementTypeButton[@name="立即更新"]'
+    rollback_xpath = '//XCUIElementTypeButton[@name="回退到正式版"]'
+
+    for attempt in range(1, max_retries + 1):
+        print(f"第{attempt}次尝试...")
+
+        try:
+            # 步骤1：等待"点击检测"出现（最多10秒）
+            print(f"等待'点击检测'元素出现...")
+            click_detection_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((AppiumBy.XPATH, click_detection_xpath))
+            )
+
+            # 步骤2：点击"点击检测"
+            print("找到'点击检测'，正在点击...")
+            click_detection_element.click()
+
+            # 步骤3：点击后等待4秒
+            print("点击后等待4秒...")
+            time.sleep(4)
+
+            # 步骤4：检查两个按钮是否出现
+            print("检查'立即更新'或'回退到正式版'是否出现...")
+
+            # 使用短时间等待检查两个按钮
+            for button_xpath, button_name in [
+                (update_now_xpath, "立即更新"),
+                (rollback_xpath, "回退到正式版")
+            ]:
+                try:
+                    WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((AppiumBy.XPATH, button_xpath))
+                    )
+                    print(f"✓ 找到'{button_name}'按钮，任务完成")
+                    return True
+                except TimeoutException:
+                    continue
+
+            # 如果两个按钮都没找到
+            print("× 两个按钮都未出现，准备重试...")
+
+        except TimeoutException:
+            print("× 等待'点击检测'元素超时（10秒），准备重试...")
+        except Exception as e:
+            print(f"× 发生异常: {e}，准备重试...")
+
+    print(f"已达到最大重试次数{max_retries}，未找到更新按钮")
+    return False
 # OTA 升级
 def otaUpdate(driver: WebDriver):
     global exptTime
@@ -334,8 +406,11 @@ def otaUpdate(driver: WebDriver):
 
         # find_and_click_button_by_xpath(driver, '//XCUIElementTypeStaticText[@name="固件更新"]')
         # driver.find_elements(AppiumBy.XPATH, '//*[contains(@name, "点击检测")]')[0].click()
-        find_and_click_button_by_xpath(driver,'//XCUIElementTypeStaticText[@name="点击检测"]')
-        time.sleep(0.5)
+        # find_and_click_button_by_xpath(driver,'//XCUIElementTypeStaticText[@name="点击检测"]')
+        # time.sleep(4)
+        # find_and_click_button_by_xpath(driver,'//XCUIElementTypeStaticText[@name="点击检测"]')
+        # time.sleep(4)
+        wait_and_handle_click_detection( driver,max_retries=5)
         if wait_for_elements_by_text(driver, ['立即更新', '回退到正式版'], 1000):
             time.sleep(2)
             # find_and_click_button_by_text(driver, texts_to_wait):
